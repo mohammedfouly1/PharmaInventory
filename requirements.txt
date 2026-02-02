@@ -1,0 +1,13 @@
+# GS1 Barcode Parser + Inventory Frontend
+
+# App dependencies
+streamlit>=1.31.0
+pandas>=2.0.0
+python-dateutil>=2.8.2
+openpyxl>=3.1.2
+reportlab>=4.0.0
+pymongo[srv]>=4.6.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
