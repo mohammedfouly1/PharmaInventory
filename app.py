@@ -28,6 +28,7 @@ from modules.storage import (
 from modules.utils import expiry_status, normalize_sfda, safe_get
 
 
+st.set_page_config(page_title="Pharmacy Inventory / Stock Count", layout="wide")
 init_db()
 
 
@@ -46,6 +47,30 @@ def _ensure_session_state():
         st.session_state.duplicate_pending = None
     if "read_only" not in st.session_state:
         st.session_state.read_only = False
+
+
+def _apply_display_mode(settings: dict) -> None:
+    if settings.get("display_mode") != "Dark":
+        return
+    st.markdown(
+        """
+        <style>
+        :root, body, [data-testid="stAppViewContainer"] {
+            background-color: #0f1115 !important;
+            color: #e6e6e6 !important;
+        }
+        [data-testid="stSidebar"] {
+            background-color: #141821 !important;
+        }
+        .stButton button, .stTextInput input, .stTextArea textarea, .stSelectbox div {
+            color: #e6e6e6 !important;
+            background-color: #1c2230 !important;
+            border-color: #2a3244 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _status_badge(status: str) -> str:
@@ -906,7 +931,7 @@ def _settings_page():
             }
         )
         st.success("Settings saved.")
-        st.info("Persistence backend changes take effect on next app restart.")
+        st.info("Persistence backend uses the PERSISTENCE_BACKEND environment variable; restart required.")
 
 
 def _session_setup_page():
@@ -988,28 +1013,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-def _apply_display_mode(settings: dict) -> None:
-    if settings.get("display_mode") != "Dark":
-        return
-    st.markdown(
-        """
-        <style>
-        :root, body, [data-testid="stAppViewContainer"] {
-            background-color: #0f1115 !important;
-            color: #e6e6e6 !important;
-        }
-        [data-testid="stSidebar"] {
-            background-color: #141821 !important;
-        }
-        .stButton button, .stTextInput input, .stTextArea textarea, .stSelectbox div {
-            color: #e6e6e6 !important;
-            background-color: #1c2230 !important;
-            border-color: #2a3244 !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-st.set_page_config(page_title="Pharmacy Inventory / Stock Count", layout="wide")

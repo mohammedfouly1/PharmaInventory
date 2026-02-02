@@ -19,7 +19,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 JSON_PATH = DATA_DIR / "app.json"
 PERSISTENCE_BACKEND = os.getenv("PERSISTENCE_BACKEND", "")
-MONGODB_URI = os.getenv("MONGODB_URI", "")
+MONGODB_URI = os.getenv(
+    "MONGODB_URI",
+    "mongodb+srv://mohammedfouly:bousia11BB@mongodbcleuster.regz0gp.mongodb.net/?appName=MongoDbCleuster",
+)
 MONGODB_DB = os.getenv("MONGODB_DB", "DrugInventory")
 
 _client: Optional[MongoClient] = None
@@ -45,8 +48,9 @@ def get_db():
 def _backend() -> str:
     if PERSISTENCE_BACKEND:
         return PERSISTENCE_BACKEND.strip().lower()
-    stored = get_setting("persistence_backend", "MongoDB")
-    return str(stored).strip().lower()
+    if not MONGODB_URI:
+        return "json"
+    return "mongodb"
 
 
 def _ensure_data_dir() -> None:

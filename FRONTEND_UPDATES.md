@@ -149,6 +149,7 @@ The following items are **not yet fully implemented** or only partially covered:
 - Print-ready layout styling could still be improved
 
 3) Settings / Display
+ - Persistence backend selection is stored but effective backend is controlled by `PERSISTENCE_BACKEND`.
 
 4) Tests / Runtime Check
 - `python -c "import app"` timed out (Streamlit import)
