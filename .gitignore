@@ -140,5 +140,7 @@ scratch/
 temp/
 temp.json
 data/
+!gs1_parser/data/
+!gs1_parser/data/gtin_database.json
 exports/
 .streamlit/secrets.toml
