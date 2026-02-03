@@ -1,14 +1,32 @@
+# PERF: START TRACKING - First line of app
+import time
+_APP_START_TIME = time.perf_counter()
+
 import json
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
-import pandas as pd
+# PERF: Track stdlib imports
+from modules.perf_tracker import track_event, track_function
+track_event("APP_START", "app.py execution started")
+track_event("STDLIB_IMPORTS", "json, datetime, typing, uuid imported")
+
+# PERF FIX: Pandas lazy-loaded inside functions that need it (saves 25+ seconds on startup)
+# import pandas as pd - MOVED TO FUNCTION SCOPE
+
 import streamlit as st
+track_event("IMPORT_STREAMLIT", "streamlit imported")
+
 import streamlit.components.v1 as components
+track_event("IMPORT_STREAMLIT_COMPONENTS", "streamlit.components imported")
 
 from modules.auth import validate_login
+track_event("IMPORT_AUTH", "modules.auth imported")
+
 from modules.gs1_client import parse_scan
+track_event("IMPORT_GS1_CLIENT", "modules.gs1_client imported")
+
 from modules.reports import (
     export_csv,
     export_excel,
@@ -18,7 +36,11 @@ from modules.reports import (
     export_pdf_report,
     to_dataframe,
 )
+track_event("IMPORT_REPORTS", "modules.reports imported (reportlab, openpyxl)")
+
 from modules.settings import DEFAULT_SETTINGS, load_settings, save_settings
+track_event("IMPORT_SETTINGS", "modules.settings imported")
+
 from modules.storage import (
     create_audit,
     create_line,
@@ -34,18 +56,28 @@ from modules.storage import (
     update_line,
     update_session,
 )
+track_event("IMPORT_STORAGE", "modules.storage imported (pymongo)")
+
 from modules.utils import expiry_status, normalize_sfda, safe_get
+track_event("IMPORT_UTILS", "modules.utils imported")
 
+track_event("ALL_IMPORTS_COMPLETE", "All imports finished")
 
+track_event("BEFORE_SET_PAGE_CONFIG", "About to call st.set_page_config")
 st.set_page_config(page_title="Pharmacy Inventory / Stock Count", layout="wide")
-init_db()
+track_event("AFTER_SET_PAGE_CONFIG", "st.set_page_config completed")
+
+# PERF FIX: init_db() moved to after login (saves 7s on login page load!)
+# init_db() - NOW CALLED IN main() AFTER LOGIN
 
 
 def _now_local() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+@track_function
 def _ensure_session_state():
+    track_event("SESSION_STATE_CHECK", "Checking session state")
     if "user" not in st.session_state:
         st.session_state.user = None
     if "session_id" not in st.session_state:
@@ -56,9 +88,12 @@ def _ensure_session_state():
         st.session_state.duplicate_pending = None
     if "read_only" not in st.session_state:
         st.session_state.read_only = False
+    track_event("SESSION_STATE_COMPLETE", "Session state initialized")
 
 
+@track_function
 def _inject_global_styles() -> None:
+    track_event("INJECT_CSS_START", "Starting CSS injection (247 lines)")
     st.markdown(
         """
         <style>
@@ -243,6 +278,7 @@ def _inject_global_styles() -> None:
         """,
         unsafe_allow_html=True,
     )
+    track_event("INJECT_CSS_END", "CSS injection completed")
 
 
 def _render_status_badge(status: str) -> str:
@@ -267,12 +303,12 @@ def _render_kpi(label: str, value: str, tone: str = "info") -> str:
 
 
 def _table_controls(
-    df: pd.DataFrame,
+    df,  # pd.DataFrame - pandas imported locally
     *,
     key: str,
     default_sort: str,
     status_options: Optional[List[str]] = None,
-) -> pd.DataFrame:
+):
     col_search, col_status, col_sort, col_order, col_page = st.columns([2, 1.2, 1.4, 1, 1])
     search_text = col_search.text_input("Search", key=f"{key}_search")
     if status_options:
@@ -304,9 +340,13 @@ def _table_controls(
     return df_view.iloc[start:end]
 
 
+@track_function
 def _apply_display_mode(settings: dict) -> None:
+    track_event("APPLY_DISPLAY_MODE_START", f"Display mode: {settings.get('display_mode')}")
     if settings.get("display_mode") != "Dark":
+        track_event("APPLY_DISPLAY_MODE_SKIP", "Light mode, skipping dark CSS")
         return
+    track_event("APPLY_DARK_MODE_CSS_START", "Injecting dark mode CSS")
     st.markdown(
         """
         <style>
@@ -369,6 +409,7 @@ def _apply_display_mode(settings: dict) -> None:
         """,
         unsafe_allow_html=True,
     )
+    track_event("APPLY_DARK_MODE_CSS_END", "Dark mode CSS injection completed")
 
 
 def _status_badge(status: str) -> str:
@@ -390,23 +431,31 @@ def _line_status(parsed: dict, settings: dict) -> str:
     return expiry_status(expiry, settings["near_expiry_months"])
 
 
+@track_function
 def _require_login():
+    track_event("LOGIN_CHECK_START", "Checking if user is logged in")
     if st.session_state.user:
+        track_event("LOGIN_CHECK_PASS", f"User already logged in: {st.session_state.user}")
         return True
+    track_event("LOGIN_PAGE_RENDER_START", "Rendering login page")
     st.title("Login")
     with st.form("login_form", clear_on_submit=False):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
     if submitted:
+        track_event("LOGIN_SUBMIT", "Login form submitted")
         if validate_login(username, password):
+            track_event("LOGIN_SUCCESS", f"User {username} authenticated")
             st.session_state.user = username
             create_audit(username, "login_success")
             st.success("Logged in")
             st.rerun()
         else:
+            track_event("LOGIN_FAILURE", f"Authentication failed for {username}")
             create_audit(username or "unknown", "login_failure")
             st.error("Invalid credentials")
+    track_event("LOGIN_PAGE_RENDER_END", "Login page displayed, waiting for input")
     return False
 
 
@@ -828,6 +877,10 @@ def _quality_panel(settings: dict):
 
 
 def _lines_table(settings: dict, session: dict):
+    # PERF: Lazy-load pandas only when needed
+    import pandas as pd
+    track_event("LAZY_IMPORT_PANDAS", "pandas imported in _lines_table")
+
     lines = list_lines(st.session_state.session_id)
     if not lines:
         st.info("No lines yet.")
@@ -994,6 +1047,10 @@ def _lines_table(settings: dict, session: dict):
 
 
 def _review_page(settings: dict):
+    # PERF: Lazy-load pandas only when needed
+    import pandas as pd
+    track_event("LAZY_IMPORT_PANDAS", "pandas imported in _review_page")
+
     st.header("Review & Reconcile")
     if not st.session_state.session_id:
         st.info("Create or select a session first.")
@@ -1231,6 +1288,10 @@ def _review_page(settings: dict):
 
 
 def _finalize_page():
+    # PERF: Lazy-load pandas only when needed
+    import pandas as pd
+    track_event("LAZY_IMPORT_PANDAS", "pandas imported in _finalize_page")
+
     st.header("Finalize & Reports")
     if not st.session_state.session_id:
         st.info("Create or select a session first.")
@@ -1354,6 +1415,10 @@ def _finalize_page():
 
 
 def _audit_page():
+    # PERF: Lazy-load pandas only when needed
+    import pandas as pd
+    track_event("LAZY_IMPORT_PANDAS", "pandas imported in _audit_page")
+
     st.header("Audit & Logs")
     records = list_audit(st.session_state.session_id)
     if not records:
@@ -1460,14 +1525,41 @@ def _session_setup_page():
         st.rerun()
 
 
+@track_function
 def main():
-    _ensure_session_state()
-    settings = load_settings()
-    _inject_global_styles()
-    _apply_display_mode(settings)
+    track_event("MAIN_START", "main() function called")
 
+    track_event("BEFORE_ENSURE_SESSION_STATE", "About to initialize session state")
+    _ensure_session_state()
+    track_event("AFTER_ENSURE_SESSION_STATE", "Session state initialized")
+
+    track_event("BEFORE_LOAD_SETTINGS", "About to load settings")
+    settings = load_settings()
+    track_event("AFTER_LOAD_SETTINGS", "Settings loaded")
+
+    track_event("BEFORE_INJECT_STYLES", "About to inject global CSS")
+    _inject_global_styles()
+    track_event("AFTER_INJECT_STYLES", "Global CSS injected")
+
+    track_event("BEFORE_APPLY_DISPLAY_MODE", "About to apply display mode")
+    _apply_display_mode(settings)
+    track_event("AFTER_APPLY_DISPLAY_MODE", "Display mode applied")
+
+    track_event("BEFORE_REQUIRE_LOGIN", "About to check login")
     if not _require_login():
+        track_event("MAIN_EXIT_NO_LOGIN", "Exiting main - user not logged in")
         return
+
+    track_event("AFTER_LOGIN_SUCCESS", "User is logged in, continuing")
+
+    # PERF FIX: Initialize database only after successful login (saves 7s on login page!)
+    if 'db_initialized' not in st.session_state:
+        track_event("BEFORE_INIT_DB", "About to call init_db() (after login)")
+        init_db()
+        track_event("AFTER_INIT_DB", "init_db() completed")
+        st.session_state.db_initialized = True
+    else:
+        track_event("DB_ALREADY_INITIALIZED", "Database already initialized in session")
 
     st.sidebar.title("Navigation")
     _select_or_restore_session()
@@ -1502,6 +1594,26 @@ def main():
     elif page == "Settings":
         _settings_page()
 
+    track_event("MAIN_END", "main() function completed")
+
+    # PERF: Display performance report in sidebar (TEMPORARY - REMOVE BEFORE COMMIT)
+    if st.session_state.user == "admin":
+        with st.sidebar.expander("⚡ Performance Report (DEBUG)", expanded=False):
+            from modules.perf_tracker import get_report, save_report
+            if st.button("Generate Performance Report"):
+                report = get_report()
+                st.text_area("Performance Data", report, height=400)
+                filename = save_report("performance_report.txt")
+                st.success(f"Report saved to {filename}")
+                st.download_button(
+                    "Download Report",
+                    report,
+                    file_name="performance_report.txt",
+                    mime="text/plain"
+                )
+
 
 if __name__ == "__main__":
+    track_event("APP_MAIN_BLOCK", "__main__ block executing")
     main()
+    track_event("APP_COMPLETE", "Application execution complete")

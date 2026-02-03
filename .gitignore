@@ -144,3 +144,12 @@ data/
 !gs1_parser/data/gtin_database.json
 exports/
 .streamlit/secrets.toml
+
+# Performance tracking (debugging only - not for production)
+modules/perf_tracker.py
+PERF_TRACKER_README.md
+PERFORMANCE_ANALYSIS.md
+PERFORMANCE_FIXES_APPLIED.md
+GITIGNORE_SETUP.md
+performance_report*.txt
+performance_*.txt
