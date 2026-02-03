@@ -11,13 +11,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-# PERF: Track storage operations
-from modules.perf_tracker import track_event, track_function
-
-track_event("STORAGE_MODULE_IMPORT_START", "Importing pymongo")
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import PyMongoError
-track_event("STORAGE_MODULE_IMPORT_END", "pymongo imported")
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,17 +32,12 @@ def _utc_now() -> str:
     return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
-@track_function
 def _get_client() -> MongoClient:
     global _client
     if _client is None:
-        track_event("MONGODB_CONNECT_START", "Creating MongoDB connection")
         if not MONGODB_URI:
             raise ValueError("MONGODB_URI is required for MongoDB backend.")
         _client = MongoClient(MONGODB_URI)
-        track_event("MONGODB_CONNECT_END", f"MongoDB client created, URI: {MONGODB_URI[:20]}...")
-    else:
-        track_event("MONGODB_REUSE", "Reusing existing MongoDB connection")
     return _client
 
 
@@ -81,30 +71,15 @@ def _json_save(payload: Dict[str, Any]) -> None:
         json.dump(payload, f, ensure_ascii=True, indent=2)
 
 
-@track_function
 def init_db() -> None:
-    track_event("INIT_DB_START", f"Initializing database, backend: {_backend()}")
     if _backend() == "json":
-        track_event("INIT_DB_JSON_START", "Using JSON backend")
         _json_save(_json_load())
-        track_event("INIT_DB_JSON_END", "JSON backend initialized")
         return
 
-    track_event("INIT_DB_MONGODB_START", "Using MongoDB backend")
-    track_event("INIT_DB_GET_DB", "Getting database connection")
     db = get_db()
-    track_event("INIT_DB_GOT_DB", "Database connection established")
-
-    track_event("INIT_DB_INDEX_1", "Creating index: sessions.session_id")
     db.sessions.create_index("session_id", unique=True)
-
-    track_event("INIT_DB_INDEX_2", "Creating index: sessions.start_datetime")
     db.sessions.create_index("start_datetime")
-
-    track_event("INIT_DB_INDEX_3", "Creating index: lines.session_id+scan_timestamp")
     db.lines.create_index([("session_id", ASCENDING), ("scan_timestamp", DESCENDING)])
-
-    track_event("INIT_DB_INDEX_4", "Creating index: lines.session_id+gtin+batch+expiry")
     db.lines.create_index(
         [
             ("session_id", ASCENDING),
@@ -113,17 +88,9 @@ def init_db() -> None:
             ("expiry_date", ASCENDING),
         ]
     )
-
-    track_event("INIT_DB_INDEX_5", "Creating index: lines.session_id+serial")
     db.lines.create_index([("session_id", ASCENDING), ("serial", ASCENDING)])
-
-    track_event("INIT_DB_INDEX_6", "Creating index: audit.session_id+timestamp")
     db.audit.create_index([("session_id", ASCENDING), ("timestamp", DESCENDING)])
-
-    track_event("INIT_DB_INDEX_7", "Creating index: settings.key")
     db.settings.create_index("key", unique=True)
-
-    track_event("INIT_DB_MONGODB_END", "All MongoDB indexes created")
 
 
 def check_connection() -> bool:
