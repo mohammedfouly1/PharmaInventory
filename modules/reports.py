@@ -52,6 +52,26 @@ def export_excel_single(df: pd.DataFrame, filename: str, sheet_name: str = "Shee
     return path
 
 
+def export_excel_with_metadata(
+    detailed: pd.DataFrame,
+    summary: Optional[pd.DataFrame],
+    warnings: Optional[pd.DataFrame],
+    metadata: Dict[str, str],
+    filename: str,
+) -> Path:
+    ensure_exports_dir()
+    path = EXPORTS_DIR / filename
+    meta_df = pd.DataFrame(list(metadata.items()), columns=["Field", "Value"])
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        meta_df.to_excel(writer, sheet_name="Metadata", index=False)
+        detailed.to_excel(writer, sheet_name="Detailed", index=False)
+        if summary is not None and not summary.empty:
+            summary.to_excel(writer, sheet_name="Summary", index=False)
+        if warnings is not None and not warnings.empty:
+            warnings.to_excel(writer, sheet_name="Warnings", index=False)
+    return path
+
+
 def _compute_col_widths(df: pd.DataFrame, width: float, weights: Optional[Dict[str, float]] = None) -> List[float]:
     col_names = list(df.columns)
     if not col_names:
